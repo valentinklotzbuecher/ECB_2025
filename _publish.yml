@@ -1,0 +1,4 @@
+- source: ECB_exercise.qmd
+  quarto-pub:
+    - id: 909dbef8-bc15-429c-98d2-b56aa25cb67d
+      url: 'https://valentink.quarto.pub/global-greenhouse-gas-emissions'

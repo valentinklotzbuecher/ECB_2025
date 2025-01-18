@@ -1,0 +1,414 @@
+---
+title: "Global Greenhouse Gas Emissions"
+subtitle: "Data Visualisation Exercise"
+author: "Valentin Klotzb&uuml;cher"
+date: last-modified
+date-format: long
+bibliography: 
+  - "references.bib"
+  - "grateful-refs.bib"
+csl: "nature.csl"
+link-citations: true
+crossref:
+  fig-title: "Chart"
+format:
+  pdf: 
+    papersize: a4
+    toc: false
+    lof: false
+    lot: false
+    colorlinks: true
+    geometry:
+      - top = 2cm
+      - right = 2cm
+      - bottom = 2cm
+      - left = 2cm
+    mainfont: "Arial"
+    sansfont: "Arial"
+    monofont: "Arial"
+    execute: 
+      echo: false
+      warning: false
+      message: false
+      cache: false
+    fig-cap-location: top
+    fig-align: left
+    fig-width: 10
+    fig-height: 6
+  html:
+    theme: [journal, theme-light.scss]
+    highlight-style: atom-one
+    toc: false
+    citations-hover: true
+    footnotes-hover: true
+    callout-appearance: minimal
+    default-image-extension: svg
+    smooth-scroll: true
+    code-fold: true
+    code-tools: true
+    code-summary: "Show code"
+    code-overflow: wrap
+    fig-cap-location: top
+    fig-align: left
+    lightbox: true
+    execute: 
+      warning: false
+      message: false
+    code-links:
+      - icon: file-code
+        href: data-import.py
+---
+
+This report analyzes global greenhouse gas (GHG) emissions using data from the Emissions Database for Global Atmospheric Research (EDGAR) GHG emissions files [@edgar2024; @edgar2024data]. Information on countries' income-groups was obtained from the World Bank API [@wbstats].
+
+::: {.content-hidden unless-format="html"}
+
+The analysis was conducted in R version 4.4.2 [@base], using a number of additional packages for data preparation and visualisation [@countrycode; @here; @janitor; @renv; @rmarkdown2024; @scales; @showtext; @tidyverse; @treemapify; @zoo], and compiled into a reproducible PDF report with Quarto.
+
+:::
+
+::: {.content-hidden unless-format="pdf"}
+
+The analysis was conducted in R version 4.4.2 [@base], using a number of additional packages for data preparation and visualisation [@countrycode; @grateful; @here; @janitor; @rmarkdown2024; @scales; @showtext; @tidyverse; @treemapify; @zoo], and compiled into a reproducible PDF report with Quarto.
+The code to reproduce this PDF document, together with all required files, is available for download [here](https://valentink.quarto.pub/global-greenhouse-gas-emissions/).
+
+:::
+
+
+::: {#fig-1}
+
+
+```{r}
+#| label: chart1
+
+library("tidyverse")
+library("janitor")
+library("here")
+library("readxl")
+library("scales")
+library("zoo") 
+library("treemapify")
+
+library("showtext")
+font_add("Arial", regular = "arial.ttf")
+showtext_auto()
+
+library("wbstats")
+country_meta <- wb_countries() |>
+  mutate(country_wb = country) |>
+  select(iso3c, country_wb, region, income_level)
+
+library("countrycode")
+
+library("grateful")
+# citations <- cite_packages(output = "paragraph", out.dir = ".", cite.tidyverse = TRUE)
+
+euro_area_countries <- c(
+  "Austria", "Belgium", "Croatia", "Cyprus", "Estonia", "Finland", "France and Monaco",
+  "Germany", "Greece", "Ireland", "Italy, San Marino and the Holy See", "Latvia", "Lithuania",
+  "Luxembourg", "Malta", "Netherlands", "Portugal", "Slovakia", "Slovenia", "Spain and Andorra"
+)
+ 
+edgar_growth <- read_excel(here("data", "EDGAR_2024_GHG_booklet_2024.xlsx"), sheet = "GHG_totals_by_country") |>
+  clean_names()  |>
+  filter(!is.na(country)) |>
+  pivot_longer(cols = starts_with("x"), names_to = "year", values_to = "emissions") |>
+  mutate(
+    year = as.numeric(str_remove(year, "x")),
+    emissions = ifelse(emissions == 0, NA, emissions),
+    euro_area = if_else(country %in% euro_area_countries, 1, 0)
+  )  |>
+  filter(!country %in% c("International Aviation", "International Shipping"))
+
+
+edata_euroarea <- edgar_growth |>
+  filter(country %in% euro_area_countries) |>
+  group_by(year) |>
+  summarise(emissions = sum(emissions, na.rm = TRUE)) |>
+  arrange(year) |>
+  mutate(echange_euroarea = emissions - lag(emissions)) |>
+  mutate(egrowth_euroarea = (emissions - lag(emissions))/lag(emissions)) |>
+  mutate(egrowth_euroarea_MA = zoo::rollmean(egrowth_euroarea, k = 5, fill = NA, align = "right")) |> 
+  select(year, starts_with("egrowth")) |>
+  mutate(region = "EA") 
+
+edata_eu27 <- edgar_growth |>
+  filter(country == "EU27") |>
+  arrange(year) |>
+  mutate(echange_eu27 = emissions - lag(emissions)) |>
+  mutate(egrowth_eu27 = (emissions - lag(emissions))/lag(emissions)) |> 
+  mutate(egrowth_eu27_MA = zoo::rollmean(egrowth_eu27, k = 5, fill = NA, align = "right")) |> 
+  select(year, starts_with("egrowth")) |>
+  mutate(region = "EU27") 
+  
+edata_world <- edgar_growth |>
+  filter(country == "GLOBAL TOTAL") |>
+  arrange(year) |>
+  mutate(echange_world = emissions - lag(emissions)) |>
+  mutate(egrowth_world = (emissions - lag(emissions))/lag(emissions)) |>
+  mutate(egrowth_world_MA = zoo::rollmean(egrowth_world, k = 5, fill = NA, align = "right")) |> 
+  select(year, starts_with("egrowth")) |>
+  mutate(region = "World") 
+
+edata_regions <- edata_world |>
+  left_join(edata_eu27, by = "year") |>
+  left_join(edata_euroarea, by = "year")  |>
+  filter(year != 1970 ) |>
+  select(year, starts_with("egrowth")) |>
+  pivot_longer(cols = -year, names_to = "series", values_to = "egrowth") |>
+  mutate(
+    region = case_when(
+      str_detect(series, "world") ~ "Worldwide",
+      str_detect(series, "eu27") ~ "EU 27",
+      str_detect(series, "euroarea") ~ "Euro Area"
+    ),
+    type = if_else(str_detect(series, "_MA$"), "MA", "value")
+    ) |>
+  mutate(region = factor(region, levels = c("Euro Area", "EU 27", "Worldwide"))) |>
+  pivot_wider(names_from = type, values_from = egrowth)  |>
+  group_by(year, region) |>
+  summarise(
+    value = first(value[!is.na(value)]),
+    MA = first(MA[!is.na(MA)]),
+    .groups = "drop"
+  ) |>
+  mutate(tval = round(value*100, 1),
+         tMA = round(value*100, 1)) |>
+  filter(year>1974)
+
+chart1 <- ggplot(edata_regions, aes(x = year, color = region)) +
+  geom_segment(aes(x = year, xend = year, y = 0, yend = value), 
+               color = "grey90", size = 0.5) +
+  geom_point(aes(y = value), size = 2, alpha = 0.7) +
+  geom_line(aes(y = MA), size = 1, alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", size = 0.5) +
+   scale_color_manual(values = c(
+    "Euro Area" = "#003299",
+    "EU 27" = "#ffb400",
+    "Worldwide" = "#ff4b00"
+  )) +
+  scale_y_continuous(labels = scales::percent_format(), position = "left") +
+  labs(
+    x = element_blank(),
+    y = "GHG Emissions, Growth Rate",
+    color = element_blank()
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Arial", color = "black", size = 17),
+    axis.text = element_text(color = "black", size = 15),
+    panel.grid.major = element_line(size = 0.4, linetype = 2),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    legend.justification = c(0, 1),
+    legend.key.size = unit(1, "lines")
+  )
+
+chart1
+
+
+
+```
+
+
+*Notes:* Growth rate of GHG emissions over time, in percent. Each lines shows the 5-year leading moving average, colored by region, with points indicating the underlying year-on-year growth rates. GHG emissions include CO2 (fossil only), CH4, N2O and F-gases. \newline
+*Sources:* EDGAR @edgar2024data and own calculations. 
+
+**Evolution of GHG growth in the euro area, European Union (EU27) and worldwide.**
+
+:::
+
+- Last 15 years show Deceleration in all regions
+- 5-year MA for EU and EA negative since...  also decelerating but Still growing globally
+- Substantial global reductions are only observed following the global financial crisis and the COVID-19 pandemic: In 2020, GHG emissions decreased by `r edata_regions |> filter(region == "Worldwide" & year == "2020") |>  pull(tval)`% worldwide and `r edata_regions |> filter(region == "Euro Area" & year == "2020") |> pull(tval)`% in the Euro Area.
+
+
+
+\newpage
+
+::: {#fig-2}
+
+```{r}
+#| label: chart2
+
+edgar_pc <- read_excel(here("data", "EDGAR_2024_GHG_booklet_2024.xlsx"), sheet = "GHG_per_capita_by_country") |>
+  clean_names() |>
+  filter(country != "GLOBAL TOTAL" 
+         & country != "EU27" 
+         & country != "") |>
+  pivot_longer(cols = starts_with("x"), names_to = "year", values_to = "emissions") |>
+  mutate(year = as.numeric(str_remove(year, "x"))) |>
+  filter(year == max(year)) |>
+  left_join(country_meta, by = c("edgar_country_code" = "iso3c")) |>
+  mutate(
+    income_level = if_else(
+      is.na(income_level), "Not classified",income_level)
+  )
+
+edgar_pc <- edgar_pc |>
+  mutate(lemissions = log(emissions)) |> 
+  mutate(income_level = factor(income_level, 
+                               levels = c("Not classified",
+                                          "Low income", 
+                                          "Lower middle income",
+                                          "Upper middle income",
+                                          "High income")))
+
+ group_means <- edgar_pc |>
+  group_by(income_level) |>
+  summarise(med_lemissions = median(lemissions, na.rm = TRUE),
+            med_emissions = median(emissions, na.rm = TRUE))
+
+edgar_pc <- edgar_pc |>
+  mutate(
+    label = case_when(
+      country %in% c("Venezuela", "France", "China", "Nigeria") ~ country,  # Label selected countries
+      # emissions < quantile(emissions, 0.05, na.rm = TRUE) ~ country,  # Label outliers
+      TRUE ~ NA_character_  # No label for other countries
+    )
+  )
+
+# Plot
+chart2 <- ggplot(edgar_pc, aes(x = income_level, y = emissions)) +
+  geom_jitter(aes(color = income_level), width = 0.35, alpha = 0.6, size = 5) +
+  geom_point(data = group_means, aes(x = income_level, y = med_emissions),
+             shape = 21, size = 4, fill = "white", color = "black", stroke = 1, alpha = 1) +
+  # geom_text_repel(aes(label = label, color = income_level), size = 3, show.legend = FALSE) +  
+  # geom_text(data = group_means, aes(x = income_level, y = med_emissions, label = scales::comma(med_emissions)),
+            # vjust = -0.5, size = 3, color = "black") +
+  scale_color_manual(values = c(
+    "Low income" ="#65b800",
+    "Lower middle income" ="#ff4b00",
+    "High income" =  "#003299",
+    "Upper middle income" =  "#ffb400",
+    "Not classified" = "gray60"
+  )) +
+  scale_y_continuous(
+    trans = "log",                             
+    breaks = c(1, 2, 4, 8, 16, 32, 64),  
+    position = "left"                          
+  ) +
+  labs(
+    x = element_blank(),
+    y = "Emissions per capita in t CO2eq/person (log scale)"
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Arial", color = "black", size = 17),
+    axis.text = element_text(color = "black", size = 15),
+    legend.position = "none", 
+    panel.grid.minor = element_blank(), 
+    panel.grid.major = element_line(linewidth = 0.4, linetype = 2)
+  ) +
+  coord_flip()
+
+chart2
+
+```
+
+*Notes:* Emissions per capita in 2023, in tons of CO2eq/person (log scale). Individual countries are sorted and colored by income group, with black circles denoting the median value for each group. GHG emissions include CO2 (fossil only), CH4, N2O and F-gases.  \newline
+*Sources:* EDGAR @edgar2024data, World Bank @wbstats, and own calculations.
+
+**Comparison of countries’ GHG emissions per capita aggregated according to the World Bank income groups.**
+
+:::
+
+- Per capita emissions are notably higher in high-income countries:
+- While there is substantial overlap, for all low and lower-middle income countries, per-capita emissions are below the high-income median of `r group_means |> filter(income_level == "High income") |> pull(med_emissions) |> round(1)` t CO2-eq per person.
+- More variation the in upper-middle and high-income groups
+
+
+\newpage
+
+
+::: {#fig-3}
+
+```{r}
+#| label: chart3
+
+edgar_cont <- read_excel(here("data", "EDGAR_2024_GHG_booklet_2024.xlsx"), sheet = "GHG_totals_by_country") |>
+  clean_names() |>
+  filter(!country %in% c("GLOBAL TOTAL", "EU27", "International Aviation", "International Shipping")) |>  
+  pivot_longer(cols = starts_with("x"), names_to = "year", values_to = "emissions") |>
+  mutate(year = as.numeric(str_remove(year, "x"))) |>  
+  filter(!is.na(country)) |>
+  filter(year == max(year)) 
+
+edgar_cont <- edgar_cont |>
+  mutate(
+    continent = countrycode(sourcevar = edgar_country_code, 
+                            origin = "iso3c",               
+                            destination = "continent")
+    ) |>   
+  mutate(continent = case_when(country %in% c("Curaçao") ~ "Americas",
+                               country %in% c("Serbia and Montenegro") ~ "Europe",
+                               is.na(country) ~ "NA",
+                               .default = continent))
+
+edgar_cont <- edgar_cont |>
+  arrange(desc(emissions)) |>
+  mutate(label = if_else(row_number() <= 15, country, edgar_country_code))   |>   
+  mutate(label = if_else(country %in% c("Türkiye","Saudi Arabia", "South Korea", "Australia"), edgar_country_code, label))
+
+continent_colors <- c(
+  "Africa" = "#00b1ea",
+  "Asia" = "#003299",
+  "Europe" = "#ffb400",
+  "Americas" = "#ff4b00",
+  "Oceania" = "#65b800"
+)
+ 
+chart3 <- ggplot(edgar_cont, aes(area = emissions, fill = continent, subgroup = continent, label = label)) +
+  geom_treemap(color = "white") +
+  geom_treemap_subgroup_border(color = "white", size = 1.5) + 
+  geom_treemap_text(fontface = "italic", colour = "white", place = "centre", grow = TRUE) +  
+  scale_fill_manual(values = continent_colors) +
+  labs(fill = element_blank()) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Arial", color = "black", size = 17),
+    axis.text = element_text(color = "black", size = 15),
+    legend.position = "top",
+    legend.justification = c(0, 1),
+    legend.key.size = unit(0.7, "lines"),
+    )
+
+chart3
+
+```
+
+*Notes:* Contributions of countries to total global GHG emissions in 2023. The size of each rectangle, relative to the full area, reflects each country's contribution, sorted and colored by continent. \newline 
+*Sources:* EDGAR @edgar2024data and own calculations.
+
+**Contribution of individual countries and continents to total world GHG emissions.**
+
+:::
+
+
+- Asia contributes with `r edgar_cont |> filter(continent == "Asia") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`% most to global GHG emissions in 2023. 
+
+Europe (`r edgar_cont |> filter(continent == "Europe") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%) 
+
+Americas (`r edgar_cont |> filter(continent == "Americas") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%)
+
+and Africa `r edgar_cont |> filter(continent == "Africa") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`% 
+
+Oceania
+`r edgar_cont |> filter(continent == "Oceania") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%
+
+
+- China alone contributes `r edgar_cont |> filter(country == "China") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, followed by the USA with `r edgar_cont |> filter(country == "United States") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, India `r edgar_cont |> filter(country == "India") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%,  Russia `r edgar_cont |> filter(country == "Russia") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, and Brasil `r edgar_cont |> filter(country == "Brazil") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%.
+- African countries contribute very little
+- On the country level, China and USA dominate the picture, followed.
+
+
+\vfill
+
+---
+
+\footnotesize
+
+::: {#refs}
+:::
+
+

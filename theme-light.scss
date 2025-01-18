@@ -1,0 +1,19 @@
+/*-- scss:defaults --*/
+// Base document colors
+$body-bg: white;
+$body-color: #003299;
+$link-color: #5e7ebf;
+$url-color: #5e7ebf;
+$btn-color: #003299;
+
+
+.btn {
+    color: #5e7ebf !important; /* Override the default button text color */
+  }
+  
+  .btn:hover, .btn:focus {
+    color: #5e7ebf !important; /* Adjust hover/focus text color */
+  }
+
+// Code blocks
+$code-block-bg-alpha: -.8;
