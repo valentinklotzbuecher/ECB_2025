@@ -1,4 +1,4 @@
 - source: ECB_exercise.qmd
   quarto-pub:
-    - id: 909dbef8-bc15-429c-98d2-b56aa25cb67d
-      url: 'https://valentink.quarto.pub/global-greenhouse-gas-emissions'
+    - id: d445c155-5f5f-4784-9d96-7a32e09330e3
+      url: 'https://valentink.quarto.pub/ghg'

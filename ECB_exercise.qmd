@@ -2,6 +2,16 @@
 title: "Global Greenhouse Gas Emissions"
 subtitle: "Data Visualisation Exercise"
 author: "Valentin Klotzb&uuml;cher"
+authors: 
+  - name: Valentin Klotzbücher
+    orcid: 0000-0001-9382-6757
+    email: valentin.klotzbuecher@econ.uni-freiburg.de
+#     affiliations:
+#       - ref: uf
+# affiliations:
+#    - id: uf 
+#      name: University of Freiburg 
+#      address: Freiburg im Breisgau, DE
 date: last-modified
 date-format: long
 bibliography: 
@@ -35,6 +45,9 @@ format:
     fig-align: left
     fig-width: 10
     fig-height: 6
+    include-in-header: include-in-header.tex
+    template-partials:
+        - before-body.tex
   html:
     theme: [journal, theme-light.scss]
     highlight-style: atom-one
@@ -42,7 +55,7 @@ format:
     citations-hover: true
     footnotes-hover: true
     callout-appearance: minimal
-    default-image-extension: svg
+    embed-resources: true
     smooth-scroll: true
     code-fold: true
     code-tools: true
@@ -55,28 +68,26 @@ format:
       warning: false
       message: false
     code-links:
-      - icon: file-code
-        href: data-import.py
+      - text: Replication files
+        icon: github
+        href: https://github.com/valentinklotzbuecher/ECB_2025
+    other-links: 
+      - text: My website
+        icon: bullseye
+        href: https://valentink.quarto.pub/
 ---
 
 This report analyzes global greenhouse gas (GHG) emissions using data from the Emissions Database for Global Atmospheric Research (EDGAR) GHG emissions files [@edgar2024; @edgar2024data]. Information on countries' income-groups was obtained from the World Bank API [@wbstats].
 
 ::: {.content-hidden unless-format="html"}
-
 The analysis was conducted in R version 4.4.2 [@base], using a number of additional packages for data preparation and visualisation [@countrycode; @here; @janitor; @renv; @rmarkdown2024; @scales; @showtext; @tidyverse; @treemapify; @zoo], and compiled into a reproducible PDF report with Quarto.
-
 :::
 
 ::: {.content-hidden unless-format="pdf"}
-
-The analysis was conducted in R version 4.4.2 [@base], using a number of additional packages for data preparation and visualisation [@countrycode; @grateful; @here; @janitor; @rmarkdown2024; @scales; @showtext; @tidyverse; @treemapify; @zoo], and compiled into a reproducible PDF report with Quarto.
-The code to reproduce this PDF document, together with all required files, is available for download [here](https://valentink.quarto.pub/global-greenhouse-gas-emissions/).
-
+The analysis was conducted in R version 4.4.2 [@base], using a number of additional packages for data preparation and visualisation [@countrycode; @grateful; @here; @janitor; @rmarkdown2024; @scales; @showtext; @tidyverse; @treemapify; @zoo], and compiled into a reproducible PDF report with Quarto. The code to reproduce this PDF document, together with an HTML version and all required files, is available at [valentink.quarto.pub/ghg](https://valentink.quarto.pub/ghg/).
 :::
 
-
 ::: {#fig-1}
-
 
 ```{r}
 #| label: chart1
@@ -210,19 +221,20 @@ chart1
 
 ```
 
-
-*Notes:* Growth rate of GHG emissions over time, in percent. Each lines shows the 5-year leading moving average, colored by region, with points indicating the underlying year-on-year growth rates. GHG emissions include CO2 (fossil only), CH4, N2O and F-gases. \newline
-*Sources:* EDGAR @edgar2024data and own calculations. 
+*Notes:* Growth rate of GHG emissions over time, in percent. Each lines shows the 5-year leading moving average, colored by region, with points indicating the underlying year-on-year growth rates. GHG emissions include CO2 (fossil only), CH4, N2O and F-gases. \newline 
+*Sources:* EDGAR @edgar2024data and own calculations.
 
 **Evolution of GHG growth in the euro area, European Union (EU27) and worldwide.**
 
 :::
 
-- Last 15 years show Deceleration in all regions
-- 5-year MA for EU and EA negative since...  also decelerating but Still growing globally
-- Substantial global reductions are only observed following the global financial crisis and the COVID-19 pandemic: In 2020, GHG emissions decreased by `r edata_regions |> filter(region == "Worldwide" & year == "2020") |>  pull(tval)`% worldwide and `r edata_regions |> filter(region == "Euro Area" & year == "2020") |> pull(tval)`% in the Euro Area.
+*Main insights:*
 
+-   Global deceleration, but still growing: Over the last 15 years, GHG emissions growth rates have decelerated across all regions. However, global emissions grew by `r edata_regions |> filter(region == "Worldwide" & year == "2023") |> pull(tval)`% in 2023 and the global 5-year moving average (MA) remains positive throughout the period, reflecting continued emissions growth worldwide.
 
+-   Negative growth in EU and EA: The 5-year moving average for emissions growth has been negative in the EU and EA since `r edata_regions |> filter(region %in% c("EU 27", "Euro Area") & MA < 0) |> summarise(min(year)) |> pull()`, for 2023 we observe a change of `r edata_regions |> filter(region == "Worldwide" & year == "2023") |> pull(tval)`%.
+
+-   Impact of global crises: Significant global reductions were observed only during major crises, such as the global financial crisis and COVID-19 pandemic. In 2020, GHG emissions decreased by `r edata_regions |> filter(region == "Worldwide" & year == "2020") |> pull(tval)`% worldwide and even stronger in the European Union (`r edata_regions |> filter(region == "EU 27" & year == "2020") |> pull(tval)`% and the Euro Area (`r edata_regions |> filter(region == "Euro Area" & year == "2020") |> pull(tval)`% ).
 
 \newpage
 
@@ -306,20 +318,23 @@ chart2
 
 ```
 
-*Notes:* Emissions per capita in 2023, in tons of CO2eq/person (log scale). Individual countries are sorted and colored by income group, with black circles denoting the median value for each group. GHG emissions include CO2 (fossil only), CH4, N2O and F-gases.  \newline
+*Notes:* Emissions per capita in 2023, in tons of CO2eq/person (log scale). Individual countries are sorted and colored by income group, with black circles denoting the median value for each group. GHG emissions include CO2 (fossil only), CH4, N2O and F-gases. 
+\newline
 *Sources:* EDGAR @edgar2024data, World Bank @wbstats, and own calculations.
 
 **Comparison of countries’ GHG emissions per capita aggregated according to the World Bank income groups.**
 
 :::
 
-- Per capita emissions are notably higher in high-income countries:
-- While there is substantial overlap, for all low and lower-middle income countries, per-capita emissions are below the high-income median of `r group_means |> filter(income_level == "High income") |> pull(med_emissions) |> round(1)` t CO2-eq per person.
-- More variation the in upper-middle and high-income groups
+*Main insights:*
 
+-   Per capita emissions across income groups: Median per capita emissions increase steeply with income, from `r group_means |> filter(income_level == "Low income") |> pull(med_emissions) |> round(2)` t CO2-eq per person in low-income countries, to `r group_means |> filter(income_level == "Lower middle income") |> pull(med_emissions) |> round(2)` in lower-middle income, `r group_means |> filter(income_level == "Upper middle income") |> pull(med_emissions) |> round(2)` in upper-middle income, and `r group_means |> filter(income_level == "High income") |> pull(med_emissions) |> round(2)` in high-income countries.
+
+-   Stark differences: All low and lower-middle-income countries fall below the high-income median of `r group_means |> filter(income_level == "High income") |> pull(med_emissions) |> round(2)` t CO2-eq per person and -- except for one outlier -- per capita emissions across high-income countries are above the median of the lower-middle income group (`r group_means |> filter(income_level == "High income") |> pull(med_emissions) |> round(2)` t CO2-eq per person).
+
+-   Variation increasing with income: Upper-middle and high-income groups exhibit broader within-variation in emissions.
 
 \newpage
-
 
 ::: {#fig-3}
 
@@ -377,38 +392,27 @@ chart3
 
 ```
 
-*Notes:* Contributions of countries to total global GHG emissions in 2023. The size of each rectangle, relative to the full area, reflects each country's contribution, sorted and colored by continent. \newline 
-*Sources:* EDGAR @edgar2024data and own calculations.
+*Notes:* Contributions of countries to total global GHG emissions in 2023. The size of each rectangle, relative to the full area, reflects each country's contribution, sorted and colored by continent. 
+\newline 
+*Sources:*  EDGAR @edgar2024data and own calculations.
 
 **Contribution of individual countries and continents to total world GHG emissions.**
 
 :::
 
+*Main insights:*
 
-- Asia contributes with `r edgar_cont |> filter(continent == "Asia") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`% most to global GHG emissions in 2023. 
+-   Continents: Asia is the largest contributor to global GHG emissions in 2023, accounting for `r edgar_cont |> filter(continent == "Asia") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, followed by the Americas (`r edgar_cont |> filter(continent == "Americas") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%), Europe (`r edgar_cont |> filter(continent == "Europe") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%), and Africa (`r edgar_cont |> filter(continent == "Africa") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%). Oceania contributes the least at `r edgar_cont |> filter(continent == "Oceania") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%.
 
-Europe (`r edgar_cont |> filter(continent == "Europe") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%) 
+-   Country-level contributions: Individual countries play a disproportionate role, with China contributing `r edgar_cont |> filter(country == "China") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, followed by the USA (`r edgar_cont |> filter(country == "United States") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%), India (`r edgar_cont |> filter(country == "India") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%), Russia (`r edgar_cont |> filter(country == "Russia") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%), and Brazil (`r edgar_cont |> filter(country == "Brazil") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%).
 
-Americas (`r edgar_cont |> filter(continent == "Americas") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%)
-
-and Africa `r edgar_cont |> filter(continent == "Africa") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`% 
-
-Oceania
-`r edgar_cont |> filter(continent == "Oceania") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%
-
-
-- China alone contributes `r edgar_cont |> filter(country == "China") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, followed by the USA with `r edgar_cont |> filter(country == "United States") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, India `r edgar_cont |> filter(country == "India") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%,  Russia `r edgar_cont |> filter(country == "Russia") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%, and Brasil `r edgar_cont |> filter(country == "Brazil") |> summarise(percent = sum(emissions, na.rm = TRUE) / sum(edgar_cont$emissions, na.rm = TRUE) * 100) |> pull(percent) |> round(1)`%.
-- African countries contribute very little
-- On the country level, China and USA dominate the picture, followed.
-
+-   Political implications: Decisions by the top-emitting countries, especially China, the USA, and India, are crucial for any effective global mitigation strategy. Coordinated international policies targeting high-emission regions could lead to significant reductions, given their outsized impact on total emissions.
 
 \vfill
 
----
+------------------------------------------------------------------------
 
 \footnotesize
 
 ::: {#refs}
 :::
-
-

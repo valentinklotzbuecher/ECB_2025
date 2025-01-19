@@ -6,6 +6,12 @@ $link-color: #5e7ebf;
 $url-color: #5e7ebf;
 $btn-color: #003299;
 
+.fig-cap {
+  color: #5e7ebf; /* Change this to your desired color */
+  font-weight: bold; /* Optional: Make the caption bold */
+  font-size: 0.9em; /* Optional: Adjust the font size */
+}
+
 
 .btn {
     color: #5e7ebf !important; /* Override the default button text color */
